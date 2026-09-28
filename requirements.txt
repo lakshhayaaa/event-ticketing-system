@@ -1,0 +1,45 @@
+# ============================================================
+# EVENT TICKETING SYSTEM
+# Python Dependencies
+# ============================================================
+
+# ------------------------------------------------------------
+# BLOCKCHAIN / WEB3
+# ------------------------------------------------------------
+
+# Python library for interacting with Ethereum-compatible
+# blockchains and smart contracts.
+web3==7.16.0
+
+# Local Ethereum testing framework.
+eth-tester==0.13.0b1
+
+# Py-EVM backend used by eth-tester.
+py-evm==0.12.1b1
+
+
+# ------------------------------------------------------------
+# QR CODE GENERATION
+# ------------------------------------------------------------
+
+# Used to generate ticket QR codes.
+qrcode==8.2
+
+# Image-processing library required by qrcode.
+Pillow==11.3.0
+
+
+# ------------------------------------------------------------
+# QR CODE SCANNING
+# ------------------------------------------------------------
+
+# Used to read/scan QR codes from images.
+opencv-python==5.0.0.93
+
+
+# ------------------------------------------------------------
+# TESTING
+# ------------------------------------------------------------
+
+# Python testing framework.
+pytest==8.4.2

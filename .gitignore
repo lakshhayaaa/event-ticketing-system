@@ -1,4 +1,28 @@
+# macOS
+.DS_Store
+
+# Python virtual environments
+.venv/
+venv/
 myenv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Testing
+.pytest_cache/
+.coverage
+
+# Generated QR codes
+ticket_*.png
+
+# Solidity build artifacts
 build/
-reports/
+
+# Environment variables / secrets
 .env
+
+# Generated reports
+reports/
