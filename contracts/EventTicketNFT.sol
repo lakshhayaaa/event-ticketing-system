@@ -17,17 +17,67 @@ contract EventTicketNFT is ERC721, AccessControl {
         bool isUsed;
     }
 
+    // Resale listing information
+    struct ResaleListing {
+        address seller;
+        uint256 price;
+        bool active;
+    }
+
     mapping(uint256 => Ticket) public tickets;
+
+    // tokenId => resale information
+    mapping(uint256 => ResaleListing) public resaleListings;
+
+    // tokenId => list of previous/current owners
+    mapping(uint256 => address[]) private ownershipHistory;
+    // tokenId => timestamp for each ownership record
+    mapping(uint256 => uint256[]) private ownershipTimestamps;
 
     uint256 private _nextTokenId;
 
-    event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, address indexed organizer);
+    event TicketMinted(
+        uint256 indexed tokenId,
+        uint256 indexed eventId,
+        address indexed organizer
+    );
+
+    event TicketTransferred(
+        uint256 indexed tokenId,
+        address indexed from,
+        address indexed to
+    );
+
+    event TicketListedForResale(
+        uint256 indexed tokenId,
+        address indexed seller,
+        uint256 price
+    );
+
+    event TicketResaleCancelled(
+        uint256 indexed tokenId,
+        address indexed seller
+    );
+
+    event TicketResold(
+        uint256 indexed tokenId,
+        address indexed seller,
+        address indexed buyer,
+        uint256 price
+    );
 
     constructor() ERC721("EventTicketNFT", "ETIX") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function addOrganizer(address organizer) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    // --------------------------------------------------
+    // ORGANIZER FUNCTIONS
+    // --------------------------------------------------
+
+    function addOrganizer(address organizer)
+        public
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         _grantRole(ORGANIZER_ROLE, organizer);
     }
 
@@ -37,9 +87,16 @@ contract EventTicketNFT is ERC721, AccessControl {
         string memory ticketType,
         string memory seatNumber,
         uint256 eventDate
-    ) public onlyRole(ORGANIZER_ROLE) returns (uint256) {
+    )
+        public
+        onlyRole(ORGANIZER_ROLE)
+        returns (uint256)
+    {
         require(to != address(0), "Cannot mint to zero address");
-        require(eventDate > block.timestamp, "Event date must be in the future");
+        require(
+            eventDate > block.timestamp,
+            "Event date must be in the future"
+        );
 
         uint256 tokenId = _nextTokenId;
         _nextTokenId++;
@@ -56,16 +113,220 @@ contract EventTicketNFT is ERC721, AccessControl {
         });
 
         emit TicketMinted(tokenId, eventId, msg.sender);
+
         return tokenId;
     }
 
-    function getTicketDetails(uint256 tokenId) public view returns (Ticket memory) {
+    // --------------------------------------------------
+    // TICKET DETAILS
+    // --------------------------------------------------
+
+    function getTicketDetails(uint256 tokenId)
+        public
+        view
+        returns (Ticket memory)
+    {
         _requireOwned(tokenId);
         return tickets[tokenId];
     }
 
+    // --------------------------------------------------
+    // OWNERSHIP
+    // --------------------------------------------------
+
+    // Get current owner of a ticket
+    function getTicketOwner(uint256 tokenId)
+        public
+        view
+        returns (address)
+    {
+        return ownerOf(tokenId);
+    }
+
+    // Get complete ownership history
+    function getOwnershipHistory(uint256 tokenId)
+        public
+        view
+        returns (address[] memory)
+    {
+        _requireOwned(tokenId);
+        return ownershipHistory[tokenId];
+    }
+    function getOwnershipTimestamps(uint256 tokenId)
+    public
+    view
+    returns (uint256[] memory)
+    {
+        _requireOwned(tokenId);
+        return ownershipTimestamps[tokenId];
+    }
+
+    // --------------------------------------------------
+    // TICKET TRANSFER
+    // --------------------------------------------------
+
+    // Transfer ticket from current owner to another user
+    function transferTicket(address to, uint256 tokenId) public {
+        require(ownerOf(tokenId) == msg.sender, "Not ticket owner");
+        require(to != address(0), "Invalid recipient");
+
+        // Cancel any active resale listing
+        if (resaleListings[tokenId].active) {
+            delete resaleListings[tokenId];
+        }
+
+        _transfer(msg.sender, to, tokenId);
+    }
+
+    // --------------------------------------------------
+    // RESALE
+    // --------------------------------------------------
+
+    // Owner lists ticket for resale
+    function listTicketForResale(
+        uint256 tokenId,
+        uint256 price
+    ) public {
+
+        require(ownerOf(tokenId) == msg.sender, "Not ticket owner");
+        require(price > 0, "Price must be greater than zero");
+
+        Ticket memory ticket = tickets[tokenId];
+
+        require(!ticket.isUsed, "Used ticket cannot be resold");
+        require(
+            block.timestamp < ticket.eventDate,
+            "Event has already started"
+        );
+
+        resaleListings[tokenId] = ResaleListing({
+            seller: msg.sender,
+            price: price,
+            active: true
+        });
+
+        emit TicketListedForResale(
+            tokenId,
+            msg.sender,
+            price
+        );
+    }
+
+    // Get resale listing
+    function getResaleListing(uint256 tokenId)
+        public
+        view
+        returns (ResaleListing memory)
+    {
+        return resaleListings[tokenId];
+    }
+
+    // Cancel resale listing
+    function cancelResale(uint256 tokenId) public {
+
+        require(
+            resaleListings[tokenId].seller == msg.sender,
+            "Not the seller"
+        );
+
+        require(
+            resaleListings[tokenId].active,
+            "Ticket is not listed"
+        );
+
+        delete resaleListings[tokenId];
+
+        emit TicketResaleCancelled(
+            tokenId,
+            msg.sender
+        );
+    }
+
+    // Buy a resale ticket
+    function buyResaleTicket(uint256 tokenId) public payable {
+
+        ResaleListing memory listing = resaleListings[tokenId];
+
+        require(listing.active, "Ticket is not for sale");
+        require(msg.sender != listing.seller, "Seller cannot buy own ticket");
+        require(msg.value == listing.price, "Incorrect payment");
+
+        Ticket memory ticket = tickets[tokenId];
+
+        require(!ticket.isUsed, "Ticket already used");
+        require(
+            block.timestamp < ticket.eventDate,
+            "Event has already started"
+        );
+
+        address seller = listing.seller;
+
+        // Remove listing BEFORE transfer/payment
+        delete resaleListings[tokenId];
+
+        // Transfer NFT to buyer
+        _transfer(seller, msg.sender, tokenId);
+
+        // Pay seller
+        (bool success, ) = payable(seller).call{
+            value: msg.value
+        }("");
+
+        require(success, "Payment failed");
+
+        emit TicketResold(
+            tokenId,
+            seller,
+            msg.sender,
+            msg.value
+        );
+    }
+
+    // --------------------------------------------------
+    // OWNERSHIP HISTORY TRACKING
+    // --------------------------------------------------
+
+    function _update(
+        address to,
+        uint256 tokenId,
+        address auth
+    )
+        internal
+        override
+        returns (address)
+    {
+        address previousOwner = super._update(
+            to,
+            tokenId,
+            auth
+        );
+
+        // Store new owner in history
+        if (to != address(0)) {
+            ownershipHistory[tokenId].push(to);
+            ownershipTimestamps[tokenId].push(block.timestamp);
+
+            if (previousOwner != address(0)) {
+                emit TicketTransferred(
+                tokenId,
+                previousOwner,
+                to
+            );
+        }
+    }
+
+        return previousOwner;
+    }
+
+    // --------------------------------------------------
+    // INTERFACE SUPPORT
+    // --------------------------------------------------
+
     function supportsInterface(bytes4 interfaceId)
-        public view override(ERC721, AccessControl) returns (bool)
+        public
+        view
+        override(ERC721, AccessControl)
+        returns (bool)
     {
         return super.supportsInterface(interfaceId);
     }
