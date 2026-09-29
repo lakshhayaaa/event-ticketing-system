@@ -25,10 +25,28 @@ contract EventTicketNFT is ERC721, AccessControl {
         bool active;
     }
 
+    //Event Information
+
+    struct Event {
+        uint256 eventId;
+        string name;
+        string venue;
+        uint256 eventDate;
+        uint256 ticketPrice;
+        uint256 totalTickets;
+        uint256 ticketsSold;
+        bool active;
+    }
+
     mapping(uint256 => Ticket) public tickets;
 
     // tokenId => resale information
     mapping(uint256 => ResaleListing) public resaleListings;
+
+    // Event ID => Event information
+    mapping(uint256 => Event) public eventDetails;
+
+    uint256 private _nextEventId = 1;   
 
     // tokenId => list of previous/current owners
     mapping(uint256 => address[]) private ownershipHistory;
@@ -79,7 +97,8 @@ contract EventTicketNFT is ERC721, AccessControl {
     event TicketVerified(
         uint256 indexed tokenId,
         uint256 indexed eventId,
-        address indexed owner
+        address indexed owner,
+        address organizer
     );
 
     constructor() ERC721("EventTicketNFT", "ETIX") {
@@ -140,6 +159,110 @@ contract EventTicketNFT is ERC721, AccessControl {
 
         return tokenId;
     }
+    // --------------------------------------------------
+    // PERSON 4 - EVENT MANAGEMENT
+    // --------------------------------------------------
+
+    function createEvent(
+        string memory name,
+        string memory venue,
+        uint256 eventDate,
+        uint256 ticketPrice,
+        uint256 totalTickets
+    )
+        public
+        onlyRole(ORGANIZER_ROLE)
+        returns (uint256)
+    {
+        require(
+            bytes(name).length > 0,
+            "Event name cannot be empty"
+    );
+
+        require(
+            bytes(venue).length > 0,
+            "Venue cannot be empty"
+    );
+
+        require(
+            eventDate > block.timestamp,
+            "Event date must be in the future"
+    );
+
+        require(
+            totalTickets > 0,
+            "Total tickets must be greater than zero"
+    );
+
+        uint256 eventId = _nextEventId;
+        _nextEventId++;
+
+        eventDetails[eventId] = Event({
+            eventId: eventId,
+            name: name,
+            venue: venue,
+            eventDate: eventDate,
+            ticketPrice: ticketPrice,
+            totalTickets: totalTickets,
+            ticketsSold: 0,
+            active: true
+    });
+
+    return eventId;
+}
+
+
+    function getEventDetails(uint256 eventId)
+        public
+        view
+        returns (Event memory)
+    {
+        require(
+            eventDetails[eventId].eventId != 0,
+            "Event does not exist"
+        );
+
+        return eventDetails[eventId];
+    }
+
+
+    function eventExists(uint256 eventId)
+    public
+    view
+    returns (bool)
+{
+    return eventDetails[eventId].eventId != 0;
+}
+
+
+    function getTicketsRemaining(uint256 eventId)
+    public
+    view
+    returns (uint256)
+{
+    require(
+        eventDetails[eventId].eventId != 0,
+        "Event does not exist"
+    );
+
+    return eventDetails[eventId].totalTickets
+        - eventDetails[eventId].ticketsSold;
+}
+
+
+function getEventRevenue(uint256 eventId)
+    public
+    view
+    returns (uint256)
+{
+    require(
+        eventDetails[eventId].eventId != 0,
+        "Event does not exist"
+    );
+
+    return eventDetails[eventId].ticketsSold
+        * eventDetails[eventId].ticketPrice;
+}
 
     // --------------------------------------------------
     // TICKET DETAILS
@@ -198,8 +321,9 @@ contract EventTicketNFT is ERC721, AccessControl {
         // Record successful entry on the blockchain.
         emit TicketVerified(
             tokenId,
-            ticket.eventId,
-            owner
+            expectedEventId,
+            owner,
+            msg.sender
         );
 
         return (
