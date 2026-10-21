@@ -11,59 +11,59 @@ This project uses **Brownie** (Python-based Ethereum development framework) with
 - Git
 
 ### 1. Clone the repo
-\`\`\`bash
+```bash
 git clone <repo-url>
 cd event-ticketing-system
-\`\`\`
+```
 
 ### 2. Create and activate a virtual environment
-\`\`\`bash
+```bash
 python3 -m venv venv
 source venv/bin/activate        # macOS/Linux
 # venv\Scripts\Activate.ps1     # Windows PowerShell
-\`\`\`
+```
 You should see `(venv)` in your terminal prompt once activated.
 
 ### 3. Install Brownie
-\`\`\`bash
+```bash
 pip install eth-brownie
-\`\`\`
+```
 
 Verify:
-\`\`\`bash
+```bash
 brownie --version
-\`\`\`
+```
 
 ### 4. Install project dependencies (OpenZeppelin contracts)
 The dependency is already declared in `brownie-config.yaml`. Just run:
-\`\`\`bash
+```bash
 brownie pm install OpenZeppelin/openzeppelin-contracts@5.0.2
-\`\`\`
+```
 
 Confirm it installed:
-\`\`\`bash
+```bash
 brownie pm list
-\`\`\`
+```
 
 ### 5. Compile contracts
-\`\`\`bash
+```bash
 brownie compile
-\`\`\`
+```
 
 ### 6. Run tests
-\`\`\`bash
+```bash
 brownie test
-\`\`\`
+```
 
 ### 7. Run scripts (e.g. local deployment)
-\`\`\`bash
+```bash
 brownie run scripts/deploy.py
-\`\`\`
+```
 
 ### 8. Interactive console (for manual testing/debugging)
-\`\`\`bash
+```bash
 brownie console
-\`\`\`
+```
 
 ---
 
